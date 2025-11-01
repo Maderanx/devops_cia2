@@ -7,7 +7,9 @@ pipeline {
         ECR_REPO = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/devops-app"
         IMAGE = 'devops-app'
         IMAGE_TAG = "latest"
-
+        ECS_CLUSTER = 'devops'             // ✅ ensure matches your ECS cluster name
+        ECS_SERVICE = 'devops-service-5yesb3ba'             // ✅ ensure matches your ECS service name
+        ECS_TASK_FAMILY = 'devops'            // ✅ your ECS task definition family name
         PATH = "/opt/homebrew/bin:/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:${env.PATH}"
     }
 
@@ -69,14 +71,35 @@ pipeline {
             }
         }
 
+        stage('Register New ECS Task Definition') {
+            steps {
+                echo "🧾 Updating ECS Task Definition..."
+                withAWS(credentials: 'aws-creds', region: "${AWS_REGION}") {
+                    sh """
+                        # Get the current task definition JSON
+                        aws ecs describe-task-definition --task-definition ${ECS_TASK_FAMILY} --query taskDefinition > taskdef.json
+
+                        # Remove unwanted fields (revision, status, etc.)
+                        cat taskdef.json | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' > new-taskdef.json
+
+                        # Update image to the new ECR image URI
+                        jq '.containerDefinitions[0].image = "${ECR_REPO}:${IMAGE_TAG}"' new-taskdef.json > final-taskdef.json
+
+                        # Register new revision
+                        aws ecs register-task-definition --cli-input-json file://final-taskdef.json
+                    """
+                }
+            }
+        }
+
         stage('Deploy to ECS') {
             steps {
                 echo "🚀 Deploying container on ECS..."
                 withAWS(credentials: 'aws-creds', region: "${AWS_REGION}") {
                     sh """
                         aws ecs update-service \
-                            --cluster devops \
-                            --service devops-service-5yesb3ba \
+                            --cluster ${ECS_CLUSTER} \
+                            --service ${ECS_SERVICE} \
                             --force-new-deployment \
                             --region ${AWS_REGION}
                     """
