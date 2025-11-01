@@ -8,9 +8,12 @@ pipeline {
         ECR_REPO = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/devops-app"
         IMAGE = 'devops-app'
         IMAGE_TAG = "latest"
+        ECS_CLUSTER = 'devops'          // 👈 your ECS cluster name
+        ECS_SERVICE = 'devops-service-5yesb3ba'      // 👈 your ECS service name
+        ECS_TASK_DEF = 'devops:1'        // 👈 your ECS task definition family name
 
-        // Explicit path fix for macOS Jenkins
-        PATH = "/opt/homebrew/bin:/bin:/usr/bin:/usr/local/bin:${env.PATH}"
+        // Fix PATH for macOS Jenkins
+        PATH = "/opt/homebrew/bin/jenkins"
     }
 
     stages {
@@ -64,22 +67,54 @@ pipeline {
             }
         }
 
-        stage('Deploy Locally (Optional)') {
+        stage('Deploy to ECS') {
             steps {
-                echo "🚀 Running container locally on port 3000..."
-                sh '''
-                    docker stop devops-app || true
-                    docker rm devops-app || true
-                    docker run -d -p 3000:3000 --name devops-app ${ECR_REPO}:${IMAGE_TAG}
-                '''
+                echo "🚀 Deploying latest image to ECS..."
+                withAWS(credentials: 'aws-creds', region: "${AWS_REGION}") {
+                    script {
+                        // Get current task definition JSON
+                        sh 'aws ecs describe-task-definition --task-definition ${ECS_TASK_DEF} --query taskDefinition > taskdef.json'
+
+                        // Replace the image URI in the container definition
+                        sh '''
+                        jq --arg IMAGE "${ECR_REPO}:${IMAGE_TAG}" '.containerDefinitions[0].image = $IMAGE' taskdef.json > new-taskdef.json
+                        '''
+
+                        // Register the new task definition revision
+                        sh 'aws ecs register-task-definition --cli-input-json file://new-taskdef.json > new-taskdef-out.json'
+
+                        // Extract new revision number
+                        script {
+                            def revision = sh(script: "jq -r '.taskDefinition.revision' new-taskdef-out.json", returnStdout: true).trim()
+                            echo "🆕 Registered new task definition revision: ${revision}"
+
+                            // Update ECS service with new task definition revision
+                            sh """
+                                aws ecs update-service \
+                                    --cluster ${ECS_CLUSTER} \
+                                    --service ${ECS_SERVICE} \
+                                    --task-definition ${ECS_TASK_DEF}:${revision} \
+                                    --force-new-deployment \
+                                    --region ${AWS_REGION}
+                            """
+
+                            echo "🕒 Waiting for ECS deployment to stabilize..."
+                            sh """
+                                aws ecs wait services-stable \
+                                    --cluster ${ECS_CLUSTER} \
+                                    --services ${ECS_SERVICE}
+                            """
+                        }
+                    }
+                }
             }
         }
     }
 
     post {
         success {
-            echo "✅ Build & Push Successful!"
-            echo "App running locally at: http://localhost:3000"
+            echo "✅ ECS Deployment Successful!"
+            echo "App is live via ECS service: ${ECS_SERVICE} in cluster ${ECS_CLUSTER}"
         }
         failure {
             echo "❌ Pipeline Failed. Check Jenkins logs for details."
