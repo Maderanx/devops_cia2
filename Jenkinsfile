@@ -12,8 +12,8 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git 'https://github.com/Maderanx/devops_cia2.git'
-            }
+        git branch: 'mai', url: 'https://github.com/Maderanx/devops_cia2.git'
+        }
         }
 
         stage('Install Dependencies') {
