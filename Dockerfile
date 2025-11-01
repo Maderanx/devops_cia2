@@ -1,20 +1,20 @@
 # Use Node.js base image
 FROM node:18-alpine
 
-# Create app directory
+# Set working directory
 WORKDIR /usr/src/app
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
+# Install dependencies (production only)
 RUN npm ci --only=production
 
-# Copy app source
+# Copy the rest of the app source code
 COPY . .
 
-# Expose the port
-EXPOSE 3000
+# Expose port 8080 for ECS
+EXPOSE 8080
 
 # Start the app
-CMD [ "npm", "start" ]
+CMD ["npm", "start"]
