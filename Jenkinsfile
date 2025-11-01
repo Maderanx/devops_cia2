@@ -7,9 +7,9 @@ pipeline {
         ECR_REPO = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/devops-app"
         IMAGE = 'devops-app'
         IMAGE_TAG = "latest"
-        ECS_CLUSTER = 'devops'             // ✅ ensure matches your ECS cluster name
-        ECS_SERVICE = 'devops-service-5yesb3ba'             // ✅ ensure matches your ECS service name
-        ECS_TASK_FAMILY = 'devops'            // ✅ your ECS task definition family name
+        ECS_CLUSTER = 'devops'             
+        ECS_SERVICE = 'devops-service-568dler7'             
+        ECS_TASK_FAMILY = 'devops'            
         PATH = "/opt/homebrew/bin:/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:${env.PATH}"
     }
 
@@ -110,11 +110,11 @@ pipeline {
 
     post {
         success {
-            echo "✅ Build, Push, and ECS Deployment Successful!"
+            echo "Build, Push, and ECS Deployment Successful!"
             echo "App deployed on ECS in region ${AWS_REGION}"
         }
         failure {
-            echo "❌ Pipeline Failed. Check Jenkins logs for details."
+            echo "Pipeline Failed. Check Jenkins logs for details."
         }
     }
 }
