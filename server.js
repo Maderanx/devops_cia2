@@ -5,7 +5,7 @@ const app = express();
 const port = process.env.PORT || 8080;
 
 app.get('/', (req, res) => {
-  res.send('Are we done? lol');
+  res.send('webhook');
 });
 
 app.listen(port, '0.0.0.0', () => {
