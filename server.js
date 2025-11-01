@@ -1,12 +1,12 @@
 // server.js
 const express = require('express');
 const app = express();
-const port = process.env.PORT || 8080;
+const port = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-  res.send('🚀 Hello from Jenkins CI/CD on AWS ECS!');
+  res.send('What Hello from Jenkins CI/CD on AWS ECS!');
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+app.listen(port, '0.0.0.0', () => {
+  console.log(`✅ Server running on port ${port}`);
 });
