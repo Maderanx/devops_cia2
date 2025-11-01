@@ -60,7 +60,7 @@ pipeline {
         stage('Push Docker Image to ECR') {
             steps {
                 echo "📤 Pushing Docker image to ECR..."
-                sh "/opt/homebrew/bin/docker push ${ECR_REPO}:${IMAGE_TAG}"
+                sh "/usr/local/bin/docker push ${ECR_REPO}:${IMAGE_TAG}"
             }
         }
 
