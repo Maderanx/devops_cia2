@@ -15,31 +15,38 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/Maderanx/devops_cia2.git'
+                git branch: 'mai', url: 'https://github.com/Maderanx/devops_cia2.git'
             }
         }
 
         stage('Install Dependencies') {
             steps {
                 echo "📦 Installing npm packages..."
-                sh 'npm install'
+                sh '''
+                    echo "📁 Current directory: $(pwd)"
+                    echo "📄 Listing files:"
+                    ls -la
+                    /opt/homebrew/bin/npm install
+                '''
             }
         }
 
         stage('Run Tests') {
             steps {
                 echo "🧪 Running tests..."
-                sh 'npm test || echo "No tests found, skipping..."'
+                sh '/opt/homebrew/bin/npm test || echo "No tests found, skipping..."'
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 echo "🐳 Building Docker image..."
-                sh """
+                sh '''
+                    echo "📁 Current directory before build: $(pwd)"
+                    ls -la
                     /usr/local/bin/docker build -t ${IMAGE}:${IMAGE_TAG} .
                     /usr/local/bin/docker tag ${IMAGE}:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}
-                """
+                '''
             }
         }
 
