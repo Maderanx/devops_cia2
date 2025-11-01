@@ -46,7 +46,7 @@ pipeline {
                 sh '''
                     echo "📁 Current directory before build: $(pwd)"
                     ls -la
-                    /usr/local/bin/docker build -t ${IMAGE}:${IMAGE_TAG} .
+                    /usr/local/bin/docker build --platform linux/amd64 -t ${IMAGE}:${IMAGE_TAG} .
                     /usr/local/bin/docker tag ${IMAGE}:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}
                 '''
             }
