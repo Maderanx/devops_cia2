@@ -2,39 +2,34 @@ pipeline {
     agent any
 
     environment {
-        // AWS & Docker settings
         AWS_REGION = 'ap-south-1'
         AWS_ACCOUNT_ID = '851871628220'
         ECR_REPO = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/devops-app"
         IMAGE = 'devops-app'
         IMAGE_TAG = "latest"
-        ECS_CLUSTER = 'devops'                     // ✅ ECS Cluster Name
-        ECS_SERVICE = 'devops-service-5yesb3ba'    // ✅ ECS Service Name
-        ECS_TASK_DEF = 'devops'                    // ✅ ECS Task Definition Family Name
 
-        // macOS Jenkins PATH fix for npm, sh, aws, docker, jq
-        PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${env.PATH}"
+        PATH = "/opt/homebrew/bin:/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:${env.PATH}"
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                git branch: 'mai', url: 'https://github.com/Maderanx/devops_cia2.git'
+                git branch: 'main', url: 'https://github.com/Maderanx/devops_cia2.git'
             }
         }
 
         stage('Install Dependencies') {
             steps {
                 echo "📦 Installing npm packages..."
-                sh '/opt/homebrew/bin/npm install'
+                sh 'npm install'
             }
         }
 
         stage('Run Tests') {
             steps {
-                echo "🧪 Running tests (if any)..."
-                sh '/opt/homebrew/bin/npm test || echo "No tests found, skipping..."'
+                echo "🧪 Running tests..."
+                sh 'npm test || echo "No tests found, skipping..."'
             }
         }
 
@@ -42,8 +37,8 @@ pipeline {
             steps {
                 echo "🐳 Building Docker image..."
                 sh """
-                    /opt/homebrew/bin/docker build -t ${IMAGE}:${IMAGE_TAG} .
-                    /opt/homebrew/bin/docker tag ${IMAGE}:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}
+                    /usr/local/bin/docker build -t ${IMAGE}:${IMAGE_TAG} .
+                    /usr/local/bin/docker tag ${IMAGE}:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}
                 """
             }
         }
@@ -54,7 +49,7 @@ pipeline {
                 withAWS(credentials: 'aws-creds', region: "${AWS_REGION}") {
                     sh """
                         aws ecr get-login-password --region ${AWS_REGION} | \
-                        docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                        /usr/local/bin/docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                     """
                 }
             }
@@ -63,47 +58,21 @@ pipeline {
         stage('Push Docker Image to ECR') {
             steps {
                 echo "📤 Pushing Docker image to ECR..."
-                sh "/opt/homebrew/bin/docker push ${ECR_REPO}:${IMAGE_TAG}"
+                sh "/usr/local/bin/docker push ${ECR_REPO}:${IMAGE_TAG}"
             }
         }
 
         stage('Deploy to ECS') {
             steps {
-                echo "🚀 Deploying latest image to ECS..."
+                echo "🚀 Deploying container on ECS..."
                 withAWS(credentials: 'aws-creds', region: "${AWS_REGION}") {
-                    script {
-                        // Get current task definition JSON
-                        sh 'aws ecs describe-task-definition --task-definition ${ECS_TASK_DEF} --query taskDefinition > taskdef.json'
-
-                        // Replace the image URI in the container definition
-                        sh '''
-                        jq --arg IMAGE "${ECR_REPO}:${IMAGE_TAG}" '.containerDefinitions[0].image = $IMAGE' taskdef.json > new-taskdef.json
-                        '''
-
-                        // Register the new task definition revision
-                        sh 'aws ecs register-task-definition --cli-input-json file://new-taskdef.json > new-taskdef-out.json'
-
-                        // Extract new revision number
-                        def revision = sh(script: "jq -r '.taskDefinition.revision' new-taskdef-out.json", returnStdout: true).trim()
-                        echo "🆕 Registered new task definition revision: ${revision}"
-
-                        // Update ECS service with new task definition revision
-                        sh """
-                            aws ecs update-service \
-                                --cluster ${ECS_CLUSTER} \
-                                --service ${ECS_SERVICE} \
-                                --task-definition ${ECS_TASK_DEF}:${revision} \
-                                --force-new-deployment \
-                                --region ${AWS_REGION}
-                        """
-
-                        echo "🕒 Waiting for ECS deployment to stabilize..."
-                        sh """
-                            aws ecs wait services-stable \
-                                --cluster ${ECS_CLUSTER} \
-                                --services ${ECS_SERVICE}
-                        """
-                    }
+                    sh """
+                        aws ecs update-service \
+                            --cluster devops-cluster \
+                            --service devops-service \
+                            --force-new-deployment \
+                            --region ${AWS_REGION}
+                    """
                 }
             }
         }
@@ -111,8 +80,8 @@ pipeline {
 
     post {
         success {
-            echo "✅ ECS Deployment Successful!"
-            echo "App is live via ECS service: ${ECS_SERVICE} in cluster ${ECS_CLUSTER}"
+            echo "✅ Build, Push, and ECS Deployment Successful!"
+            echo "App deployed on ECS in region ${AWS_REGION}"
         }
         failure {
             echo "❌ Pipeline Failed. Check Jenkins logs for details."
