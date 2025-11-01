@@ -39,8 +39,8 @@ pipeline {
             steps {
                 echo "🐳 Building Docker image..."
                 sh """
-                    /opt/homebrew/bin/docker build -t ${IMAGE}:${IMAGE_TAG} .
-                    /opt/homebrew/bin/docker tag ${IMAGE}:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}
+                    /usr/local/bin/docker build -t ${IMAGE}:${IMAGE_TAG} .
+                    /usr/local/bin/docker tag ${IMAGE}:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}
                 """
             }
         }
