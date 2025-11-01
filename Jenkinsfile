@@ -75,8 +75,8 @@ pipeline {
                 withAWS(credentials: 'aws-creds', region: "${AWS_REGION}") {
                     sh """
                         aws ecs update-service \
-                            --cluster devops-cluster \
-                            --service devops-service \
+                            --cluster devops \
+                            --service devops-service-5yesb3ba \
                             --force-new-deployment \
                             --region ${AWS_REGION}
                     """
