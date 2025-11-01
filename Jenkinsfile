@@ -2,47 +2,56 @@ pipeline {
     agent any
 
     environment {
+        // AWS & Docker settings
         AWS_REGION = 'ap-south-1'
-        ECR_REPO = '851871628220.dkr.ecr.ap-south-1.amazonaws.com/devops-app'
+        AWS_ACCOUNT_ID = '851871628220'
+        ECR_REPO = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/devops-app"
         IMAGE = 'devops-app'
         IMAGE_TAG = "latest"
+
+        // Explicit path fix for macOS Jenkins
+        PATH = "/opt/homebrew/bin:/bin:/usr/bin:/usr/local/bin:${env.PATH}"
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                git 'https://github.com/Maderanx/devops_cia2.git'
+                git branch: 'mai', url: 'https://github.com/Maderanx/devops_cia2.git'
             }
         }
 
         stage('Install Dependencies') {
             steps {
-                sh 'npm install'
+                echo "📦 Installing npm packages..."
+                sh '/opt/homebrew/bin/npm install'
             }
         }
 
         stage('Run Tests') {
             steps {
-                sh 'npm test || echo "No tests found, skipping..."'
+                echo "🧪 Running tests (if any)..."
+                sh '/opt/homebrew/bin/npm test || echo "No tests found, skipping..."'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    sh "/usr/local/bin/docker build -t ${IMAGE}:${IMAGE_TAG} ."
-                    sh "/usr/local/bin/docker tag ${IMAGE}:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}"
-                }
+                echo "🐳 Building Docker image..."
+                sh """
+                    /usr/local/bin/docker build -t ${IMAGE}:${IMAGE_TAG} .
+                    /usr/local/bin/docker tag ${IMAGE}:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}
+                """
             }
         }
 
         stage('Login to AWS ECR') {
             steps {
+                echo "🔐 Logging into AWS ECR..."
                 withAWS(credentials: 'aws-creds', region: "${AWS_REGION}") {
                     sh """
-                    aws ecr get-login-password --region ${AWS_REGION} | \
-                    docker login --username AWS --password-stdin ${ECR_REPO}
+                        aws ecr get-login-password --region ${AWS_REGION} | \
+                        docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                     """
                 }
             }
@@ -50,34 +59,30 @@ pipeline {
 
         stage('Push Docker Image to ECR') {
             steps {
+                echo "📤 Pushing Docker image to ECR..."
                 sh "/usr/local/bin/docker push ${ECR_REPO}:${IMAGE_TAG}"
             }
         }
 
-        stage('Deploy on EC2') {
+        stage('Deploy Locally (Optional)') {
             steps {
-                sshagent(['ec2-key']) {
-                    sh '''
-                    ssh -o StrictHostKeyChecking=no ec2-user@<ec2-public-ip> "
-                        aws ecr get-login-password --region ap-south-1 | \
-                        docker login --username AWS --password-stdin 851871628220.dkr.ecr.ap-south-1.amazonaws.com &&
-                        docker pull 851871628220.dkr.ecr.ap-south-1.amazonaws.com/devops-app:latest &&
-                        docker stop devops-app || true &&
-                        docker rm devops-app || true &&
-                        docker run -d -p 80:3000 --name devops-app 851871628220.dkr.ecr.ap-south-1.amazonaws.com/devops-app:latest
-                    "
-                    '''
-                }
+                echo "🚀 Running container locally on port 3000..."
+                sh '''
+                    docker stop devops-app || true
+                    docker rm devops-app || true
+                    docker run -d -p 3000:3000 --name devops-app ${ECR_REPO}:${IMAGE_TAG}
+                '''
             }
         }
     }
 
     post {
         success {
-            echo "✅ Deployment Successful! App is live on EC2 at http://<ec2-public-ip>"
+            echo "✅ Build & Push Successful!"
+            echo "App running locally at: http://localhost:3000"
         }
         failure {
-            echo "❌ Deployment Failed. Check Jenkins logs for details."
+            echo "❌ Pipeline Failed. Check Jenkins logs for details."
         }
     }
 }
