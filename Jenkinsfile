@@ -8,12 +8,12 @@ pipeline {
         ECR_REPO = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/devops-app"
         IMAGE = 'devops-app'
         IMAGE_TAG = "latest"
-        ECS_CLUSTER = 'devops'          // 👈 your ECS cluster name
-        ECS_SERVICE = 'devops-service-5yesb3ba'      // 👈 your ECS service name
-        ECS_TASK_DEF = 'devops:1'        // 👈 your ECS task definition family name
+        ECS_CLUSTER = 'devops'                     // ✅ ECS Cluster Name
+        ECS_SERVICE = 'devops-service-5yesb3ba'    // ✅ ECS Service Name
+        ECS_TASK_DEF = 'devops'                    // ✅ ECS Task Definition Family Name
 
-        // Fix PATH for macOS Jenkins
-        PATH = "/opt/homebrew/bin/jenkins"
+        // macOS Jenkins PATH fix for npm, sh, aws, docker, jq
+        PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${env.PATH}"
     }
 
     stages {
@@ -42,8 +42,8 @@ pipeline {
             steps {
                 echo "🐳 Building Docker image..."
                 sh """
-                    /usr/local/bin/docker build -t ${IMAGE}:${IMAGE_TAG} .
-                    /usr/local/bin/docker tag ${IMAGE}:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}
+                    /opt/homebrew/bin/docker build -t ${IMAGE}:${IMAGE_TAG} .
+                    /opt/homebrew/bin/docker tag ${IMAGE}:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}
                 """
             }
         }
@@ -63,7 +63,7 @@ pipeline {
         stage('Push Docker Image to ECR') {
             steps {
                 echo "📤 Pushing Docker image to ECR..."
-                sh "/usr/local/bin/docker push ${ECR_REPO}:${IMAGE_TAG}"
+                sh "/opt/homebrew/bin/docker push ${ECR_REPO}:${IMAGE_TAG}"
             }
         }
 
@@ -84,27 +84,25 @@ pipeline {
                         sh 'aws ecs register-task-definition --cli-input-json file://new-taskdef.json > new-taskdef-out.json'
 
                         // Extract new revision number
-                        script {
-                            def revision = sh(script: "jq -r '.taskDefinition.revision' new-taskdef-out.json", returnStdout: true).trim()
-                            echo "🆕 Registered new task definition revision: ${revision}"
+                        def revision = sh(script: "jq -r '.taskDefinition.revision' new-taskdef-out.json", returnStdout: true).trim()
+                        echo "🆕 Registered new task definition revision: ${revision}"
 
-                            // Update ECS service with new task definition revision
-                            sh """
-                                aws ecs update-service \
-                                    --cluster ${ECS_CLUSTER} \
-                                    --service ${ECS_SERVICE} \
-                                    --task-definition ${ECS_TASK_DEF}:${revision} \
-                                    --force-new-deployment \
-                                    --region ${AWS_REGION}
-                            """
+                        // Update ECS service with new task definition revision
+                        sh """
+                            aws ecs update-service \
+                                --cluster ${ECS_CLUSTER} \
+                                --service ${ECS_SERVICE} \
+                                --task-definition ${ECS_TASK_DEF}:${revision} \
+                                --force-new-deployment \
+                                --region ${AWS_REGION}
+                        """
 
-                            echo "🕒 Waiting for ECS deployment to stabilize..."
-                            sh """
-                                aws ecs wait services-stable \
-                                    --cluster ${ECS_CLUSTER} \
-                                    --services ${ECS_SERVICE}
-                            """
-                        }
+                        echo "🕒 Waiting for ECS deployment to stabilize..."
+                        sh """
+                            aws ecs wait services-stable \
+                                --cluster ${ECS_CLUSTER} \
+                                --services ${ECS_SERVICE}
+                        """
                     }
                 }
             }
