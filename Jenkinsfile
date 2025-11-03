@@ -7,9 +7,10 @@ pipeline {
         ECR_REPO = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/devops-app"
         IMAGE = 'devops-app'
         IMAGE_TAG = "latest"
-        ECS_CLUSTER = 'devops'             
-        ECS_SERVICE = 'devops-service-568dler7'             
-        ECS_TASK_FAMILY = 'devops'            
+        ECS_CLUSTER = 'devops'
+        ECS_SERVICE = 'devops-service-568dler7'
+        ECS_TASK_FAMILY = 'devops'
+        SNS_TOPIC_ARN = "arn:aws:sns:ap-south-1:851871628220:jenkins-deploy-alerts"
         PATH = "/opt/homebrew/bin:/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:${env.PATH}"
     }
 
@@ -54,7 +55,7 @@ pipeline {
 
         stage('Login to AWS ECR') {
             steps {
-                echo " Logging into AWS ECR..."
+                echo "Logging into AWS ECR..."
                 withAWS(credentials: 'aws-creds', region: "${AWS_REGION}") {
                     sh """
                         aws ecr get-login-password --region ${AWS_REGION} | \
@@ -106,12 +107,25 @@ pipeline {
                 }
             }
         }
+
+        stage('Notify via SNS') {
+            steps {
+                echo "🔔 Sending deployment notification via AWS SNS..."
+                withAWS(credentials: 'aws-creds', region: "${AWS_REGION}") {
+                    sh """
+                        aws sns publish \
+                            --topic-arn ${SNS_TOPIC_ARN} \
+                            --subject "Jenkins ECS Deployment Successful" \
+                            --message "The ECS deployment for ${IMAGE}:${IMAGE_TAG} was successful in cluster ${ECS_CLUSTER}, service ${ECS_SERVICE}."
+                    """
+                }
+            }
+        }
     }
 
     post {
         success {
-            echo "Build, Push, and ECS Deployment Successful!"
-            echo "App deployed on ECS in region ${AWS_REGION}"
+            echo "Build, Push, ECS Deployment, and Notification Successful!"
         }
         failure {
             echo "Pipeline Failed. Check Jenkins logs for details."
