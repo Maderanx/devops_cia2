@@ -23,10 +23,10 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                echo "📦 Installing npm packages..."
+                echo "Installing npm packages..."
                 sh '''
-                    echo "📁 Current directory: $(pwd)"
-                    echo "📄 Listing files:"
+                    echo "Current directory: $(pwd)"
+                    echo "Listing files:"
                     ls -la
                     /opt/homebrew/bin/npm install
                 '''
@@ -35,16 +35,16 @@ pipeline {
 
         stage('Run Tests') {
             steps {
-                echo "🧪 Running tests..."
+                echo "Running tests..."
                 sh '/opt/homebrew/bin/npm test || echo "No tests found, skipping..."'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                echo "🐳 Building Docker image..."
+                echo "Building Docker image..."
                 sh '''
-                    echo "📁 Current directory before build: $(pwd)"
+                    echo "Current directory before build: $(pwd)"
                     ls -la
                     /usr/local/bin/docker build --platform linux/amd64 -t ${IMAGE}:${IMAGE_TAG} .
                     /usr/local/bin/docker tag ${IMAGE}:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}
@@ -54,7 +54,7 @@ pipeline {
 
         stage('Login to AWS ECR') {
             steps {
-                echo "🔐 Logging into AWS ECR..."
+                echo " Logging into AWS ECR..."
                 withAWS(credentials: 'aws-creds', region: "${AWS_REGION}") {
                     sh """
                         aws ecr get-login-password --region ${AWS_REGION} | \
@@ -66,14 +66,14 @@ pipeline {
 
         stage('Push Docker Image to ECR') {
             steps {
-                echo "📤 Pushing Docker image to ECR..."
+                echo "Pushing Docker image to ECR..."
                 sh "/usr/local/bin/docker push ${ECR_REPO}:${IMAGE_TAG}"
             }
         }
 
         stage('Register New ECS Task Definition') {
             steps {
-                echo "🧾 Updating ECS Task Definition..."
+                echo "Updating ECS Task Definition..."
                 withAWS(credentials: 'aws-creds', region: "${AWS_REGION}") {
                     sh """
                         # Get the current task definition JSON
@@ -94,7 +94,7 @@ pipeline {
 
         stage('Deploy to ECS') {
             steps {
-                echo "🚀 Deploying container on ECS..."
+                echo "Deploying container on ECS..."
                 withAWS(credentials: 'aws-creds', region: "${AWS_REGION}") {
                     sh """
                         aws ecs update-service \
